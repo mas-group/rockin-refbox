@@ -129,6 +129,7 @@ handle_message(boost::asio::ip::udp::endpoint &sender,
       case BenchmarkState::INIT: std::cout << "INIT" << std::endl; break;
       case BenchmarkState::RUNNING: std::cout << "RUNNING" << std::endl; break;
       case BenchmarkState::PAUSED: std::cout << "PAUSED" << std::endl; break;
+      case BenchmarkState::STOPPED: std::cout << "STOPPED" << std::endl; break;
       case BenchmarkState::FINISHED: std::cout << "FINISHED" << std::endl; break;
     }
 

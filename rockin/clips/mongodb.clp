@@ -38,7 +38,7 @@
 (defrule mongodb-fbm-start
   (declare (salience ?*PRIORITY_HIGH*))
   (benchmark-phase (id ?phase) (type FBM))
-  (benchmark-state (phase-id ?phase) (state RUNNING) (prev-state PAUSED) (run ?run))
+  (benchmark-state (phase-id ?phase) (state RUNNING) (prev-state STOPPED) (run ?run))
   (selected-object (object-id ?id))
   =>
   (bind ?bf (bson-create))
@@ -150,7 +150,7 @@
 (defrule mongodb-fbm2-feedback-client
   (declare (salience ?*PRIORITY_HIGH*))
   (benchmark-phase (id ?phase) (type FBM) (type-id 2))
-  (benchmark-state (phase-id ?phase) (state PAUSED|FINISHED) (run ?run))
+  (benchmark-state (phase-id ?phase) (state STOPPED|FINISHED) (run ?run))
   ?bf <- (benchmark-feedback (source CLIENT) (time $?time) (type ?type))
   =>
   (retract ?bf)

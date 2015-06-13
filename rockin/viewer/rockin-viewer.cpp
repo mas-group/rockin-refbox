@@ -179,6 +179,11 @@ bool idle_handler() {
         label_state->set_text("Paused");
       break;
 
+      case rockin_msgs::BenchmarkState::STOPPED:
+        fg_color = Pango::Attribute::create_attr_foreground(61423, 10537, 10537);
+        label_state->set_text("Stopped");
+      break;
+
       case rockin_msgs::BenchmarkState::FINISHED:
         fg_color = Pango::Attribute::create_attr_foreground(61423, 10537, 10537);
         label_state->set_text("Finished");

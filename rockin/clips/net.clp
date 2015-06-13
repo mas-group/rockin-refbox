@@ -767,7 +767,7 @@
   ?mf <- (protobuf-msg (type "rockin_msgs.BenchmarkFeedback") (ptr ?p)
           (rcvd-at $?rcvd-at) (rcvd-from ?from-host ?from-port) (client-type CLIENT|SERVER))
   (benchmark-phase (id ?phase) (type FBM) (type-id 2))
-  (benchmark-state (phase-id ?phase) (state PAUSED|FINISHED))
+  (benchmark-state (phase-id ?phase) (state STOPPED|FINISHED))
   =>
   (retract ?mf) ; message will be destroyed after rule completes
 

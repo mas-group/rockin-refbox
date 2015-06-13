@@ -70,8 +70,13 @@
   (benchmark-reset)
 )
 
+(defrule benchmark-swtich-to-pause
+  ?bs <- (benchmark-state (state PAUSED) (prev-state RUNNING))
+  =>
+  (modify ?bs (prev-state PAUSED))
+)
 
-; Initialize and directly transition to PAUSED state
+; Initialize and directly transition to STOPPED state
 (defrule benchmark-fbm-init
   (benchmark-phase (id ?phase) (type FBM) (type-id ?fbm-id))
   ?bs <- (benchmark-state (phase-id ?phase) (state INIT))
@@ -80,38 +85,38 @@
 
   (switch ?fbm-id
     (case 1 then
-      (modify ?bs (state PAUSED) (prev-state INIT) (max-runs ?*FBM1-COUNT*)
+      (modify ?bs (state STOPPED) (prev-state INIT) (max-runs ?*FBM1-COUNT*)
           (max-time ?*FBM1-TIME*) (run 1) (benchmark-time 0.0))
     )
     (case 2 then
-      (modify ?bs (state PAUSED) (prev-state INIT) (max-runs ?*FBM2-COUNT*)
+      (modify ?bs (state STOPPED) (prev-state INIT) (max-runs ?*FBM2-COUNT*)
           (max-time ?*FBM2-TIME*) (run 1) (benchmark-time 0.0))
     )
   )
 )
 
-; Select an object when entering PAUSED state
-(defrule benchmark-fbm1-switch-to-pause
+; Select an object when entering STOPPED state
+(defrule benchmark-fbm1-switch-to-stop
   (benchmark-phase (id ?phase) (type FBM) (type-id 1))
-  ?bs <- (benchmark-state (phase-id ?phase) (state PAUSED) (prev-state ~PAUSED))
+  ?bs <- (benchmark-state (phase-id ?phase) (state STOPPED) (prev-state ~STOPPED))
   =>
-  (modify ?bs (prev-state PAUSED))
+  (modify ?bs (prev-state STOPPED))
 
   (select-random-object)
 )
 
 ; In FBM2 the RefBox does not select the object
-(defrule benchmark-fbm2-switch-to-pause
+(defrule benchmark-fbm2-switch-to-stop
   (benchmark-phase (id ?phase) (type FBM) (type-id 2))
-  ?bs <- (benchmark-state (phase-id ?phase) (state PAUSED) (prev-state ~PAUSED))
+  ?bs <- (benchmark-state (phase-id ?phase) (state STOPPED) (prev-state ~STOPPED))
   =>
-  (modify ?bs (prev-state PAUSED))
+  (modify ?bs (prev-state STOPPED))
 )
 
-; When a command switches the state from PAUSED to RUNNING, setup the current run
+; When a command switches the state from STOPPED to RUNNING, setup the current run
 (defrule benchmark-fbm-run-start
   (benchmark-phase (id ?phase) (type FBM))
-  ?bs <- (benchmark-state (phase-id ?phase) (state RUNNING) (prev-state PAUSED))
+  ?bs <- (benchmark-state (phase-id ?phase) (state RUNNING) (prev-state STOPPED))
   ?so <- (selected-object)
   =>
   (retract ?so)
@@ -138,7 +143,7 @@
            (max-runs ?max-runs) (run ?run&:(< ?run ?max-runs)))
   =>
   (retract ?ro)   ; Reset for the next run
-  (modify ?bs (state PAUSED) (prev-state RUNNING) (end-time (now)) (run (+ ?run 1)) (benchmark-time 0.0))
+  (modify ?bs (state STOPPED) (prev-state RUNNING) (end-time (now)) (run (+ ?run 1)) (benchmark-time 0.0))
 
   (printout t "FBM: Run " ?run " over" crlf)
   (assert (attention-message (text (str-cat "FBM: Run " ?run " over")) (time 15)))
@@ -306,7 +311,7 @@
 
 
 
-; Initialize and directly transition to PAUSED state
+; Initialize and directly transition to STOPPED state
 (defrule benchmark-tbm-init
   (benchmark-phase (id ?phase) (type TBM) (type-id ?fbm-id))
   ?bs <- (benchmark-state (phase-id ?phase) (state INIT))
@@ -325,14 +330,14 @@
     )
   )
 
-  (modify ?bs (state PAUSED) (prev-state INIT) (max-runs ?*TBM-COUNT*)
+  (modify ?bs (state STOPPED) (prev-state INIT) (max-runs ?*TBM-COUNT*)
       (max-time ?*TBM-TIME*) (run 1) (benchmark-time 0.0))
 )
 
-; When a command switches the state from PAUSED to RUNNING, setup the current run
+; When a command switches the state from STOPPED to RUNNING, setup the current run
 (defrule benchmark-tbm-run-start
   (benchmark-phase (id ?phase) (type TBM))
-  ?bs <- (benchmark-state (phase-id ?phase) (state RUNNING) (prev-state PAUSED))
+  ?bs <- (benchmark-state (phase-id ?phase) (state RUNNING) (prev-state STOPPED))
   =>
   (modify ?bs (prev-state RUNNING) (start-time (now)) (benchmark-time 0.0))
 

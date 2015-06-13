@@ -54,23 +54,32 @@ bool idle_handler() {
 
   if (benchmark_state) {
     Gtk::Button *button_start = 0;
+    Gtk::Button *button_pause = 0;
     Gtk::Button *button_success = 0;
     Gtk::Button *button_fail = 0;
     builder->get_widget("button_start", button_start);
+    builder->get_widget("button_pause", button_pause);
     builder->get_widget("button_success", button_success);
     builder->get_widget("button_fail", button_fail);
 
-    // Only activate in PAUSED state
-    if (benchmark_state->state() == rockin_msgs::BenchmarkState::PAUSED) {
+    // Only activate in STOPPED or PAUSED state
+    if ((benchmark_state->state() == rockin_msgs::BenchmarkState::STOPPED)
+        || (benchmark_state->state() == rockin_msgs::BenchmarkState::PAUSED)) {
       button_start->set_sensitive(true);
     } else {
       button_start->set_sensitive(false);
     }
+    // Only activate in RUNNING state
+    if (benchmark_state->state() == rockin_msgs::BenchmarkState::RUNNING) {
+      button_pause->set_sensitive(true);
+    } else {
+      button_pause->set_sensitive(false);
+    }
 
-    // Only activate in FBM2 during PAUSED or FINISHED state
+    // Only activate in FBM2 during STOPPED or FINISHED state
     if ((benchmark_state->phase().type() == rockin_msgs::BenchmarkPhase::FBM)
         && (benchmark_state->phase().type_id() == 2)
-        && ((benchmark_state->state() == rockin_msgs::BenchmarkState::PAUSED)
+        && ((benchmark_state->state() == rockin_msgs::BenchmarkState::STOPPED)
          || benchmark_state->state() == rockin_msgs::BenchmarkState::FINISHED)) {
       button_success->set_sensitive(true);
       button_fail->set_sensitive(true);
@@ -98,6 +107,12 @@ void on_start_click()
   client.send(cmd_state);
 }
 
+void on_pause_click()
+{
+  rockin_msgs::SetBenchmarkState cmd_state;
+  cmd_state.set_state(rockin_msgs::BenchmarkState::PAUSED);
+  client.send(cmd_state);
+}
 
 void on_reset_click()
 {
@@ -157,7 +172,6 @@ void on_cb_start_click()
   client.send(msg);
 }
 
-
 void on_cb_stop_click()
 {
   rockin_msgs::ConveyorBeltCommand msg;
@@ -200,6 +214,7 @@ int main(int argc, char **argv)
   window->show_all();
 
   Gtk::Button *button_start = 0;
+  Gtk::Button *button_pause = 0;
   Gtk::Button *button_success = 0;
   Gtk::Button *button_fail = 0;
   Gtk::Button *button_reset = 0;
@@ -208,6 +223,7 @@ int main(int argc, char **argv)
   Gtk::Button *button_dm_up = 0;
   Gtk::Button *button_dm_down = 0;
   builder->get_widget("button_start", button_start);
+  builder->get_widget("button_pause", button_pause); 
   builder->get_widget("button_success", button_success);
   builder->get_widget("button_fail", button_fail);
   builder->get_widget("button_reset", button_reset);
@@ -218,6 +234,7 @@ int main(int argc, char **argv)
 
   Glib::signal_idle().connect(sigc::ptr_fun(&idle_handler));
   button_start->signal_clicked().connect(sigc::ptr_fun(&on_start_click));
+  button_pause->signal_clicked().connect(sigc::ptr_fun(&on_pause_click));
   button_success->signal_clicked().connect(sigc::ptr_fun(&on_success_click));
   button_fail->signal_clicked().connect(sigc::ptr_fun(&on_fail_click));
   button_reset->signal_clicked().connect(sigc::ptr_fun(&on_reset_click));
