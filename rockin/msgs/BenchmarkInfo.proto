@@ -1,8 +1,7 @@
 /***************************************************************************
- *  RobotInfo.proto - Robot information
+ *  BenchmarkInfo.proto - RoCKIn Protocol - Info message for benchmark
  *
- *  Created: Fri Feb 22 11:20:18 2013
- *  Copyright  2013  Tim Niemueller [www.niemueller.de]
+ *  Copyright  2014  Sven Schneider
  ****************************************************************************/
 
 /*  Redistribution and use in source and binary forms, with or without
@@ -35,37 +34,15 @@
 
 package rockin_msgs;
 
-import "Time.proto";
-
 option java_package = "org.rockin.common_msgs";
-option java_outer_classname = "RobotInfoProtos";
+option java_outer_classname = "BenchmarkInfoProtos";
 
-message Robot {
+message BenchmarkInfo {
   enum CompType {
     COMP_ID  = 2000;
-    MSG_TYPE = 9;
+    MSG_TYPE = 104;
   }
 
-  required string name = 1;
-  required string team = 2;
-
-  // Host from where the BeaconSignal was received
-  required string host = 3;
-
-  // Timestamp in UTC when a BeaconSignal was received last from this robot
-  required Time last_seen = 4;
-
-  // An optional flag to determine if the robot is logging offline benchmarking
-  // data.
-  optional bool is_logging = 5;
-}
-
-message RobotInfo {
-  enum CompType {
-    COMP_ID  = 2000;
-    MSG_TYPE = 8;
-  }
-
-  // List of all known robots
-  repeated Robot robots = 1;
+  // FBM1+FBM2
+  optional string object = 1;
 }

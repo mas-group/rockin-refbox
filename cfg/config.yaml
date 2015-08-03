@@ -45,7 +45,7 @@ llsfrb:
     # debug levels: 0 ~ none, 1 ~ minimal, 2 ~ more, 3 ~ maximum
     debug-level: 2
     unwatch-facts: [time, signal, benchmark-state]
-    unwatch-rules: [retract-time, benchmark-update-last-time,
+    unwatch-rules: [retract-time,
                     net-send-beacon, net-send-BenchmarkState, net-send-OrderInfo,
                     net-send-Inventory, net-send-VersionInfo,
                     net-send-DrillingMachineStatus, net-send-ConveyorBeltStatus]
@@ -61,23 +61,41 @@ llsfrb:
       #send-port: !udp-port 4444
       #recv-port: !udp-port 4445
 
-    b-it-bots-peer:
+    AugsburgDublin-peer:
       host: !ipv4 192.168.1.255
       port: !udp-port 4446
       #send-port: !udp-port 4446
       #recv-port: !udp-port 4447
 
-    IASLab-peer:
+    RobOTTO-peer:
       host: !ipv4 192.168.1.255
       port: !udp-port 4448
       #send-port: !udp-port 4448
       #recv-port: !udp-port 4449
 
-    SPQR-peer:
+    smARTLab-peer:
       host: !ipv4 192.168.1.255
       port: !udp-port 4450
       #send-port: !udp-port 4450
       #recv-port: !udp-port 4451
+
+    SPQR-peer:
+      host: !ipv4 192.168.1.255
+      port: !udp-port 4452
+      #send-port: !udp-port 4452
+      #recv-port: !udp-port 4453
+
+    UvA-peer:
+      host: !ipv4 192.168.1.255
+      port: !udp-port 4454
+      #send-port: !udp-port 4454
+      #recv-port: !udp-port 4455
+
+    wits-peer:
+      host: !ipv4 192.168.1.255
+      port: !udp-port 4456
+      #send-port: !udp-port 4456
+      #recv-port: !udp-port 4457
 
   mongodb:
     enable: true
@@ -88,11 +106,14 @@ llsfrb:
       protobuf: llsfrb.protobuf
 
   game:
-    teams: [b-it-bots, IASLab, SPQR]
+    teams: [AugsburgDublin, RobOTTO, smARTLab, SPQR, UvA, wits]
     crypto-keys:
-      ART: randomkey
-      b-it-bots: randomkey
+      AugsburgDublin: randomkey
+      RobOTTO: randomkey
+      smARTLab: randomkey
+      SPQR: randomkey
       UvA: randomkey
+      wits: randomkey
 
   shell:
     refbox-host: !ipv4 192.168.1.100

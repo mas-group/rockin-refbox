@@ -49,6 +49,8 @@
 #include <msgs/Camera.pb.h>
 #include <msgs/CompressedImage.pb.h>
 #include <msgs/BenchmarkFeedback.pb.h>
+#include <msgs/RobotStatusReport.pb.h>
+#include <msgs/LoggingStatus.pb.h>
 
 #include <boost/asio.hpp>
 #include <boost/date_time.hpp>
@@ -130,6 +132,7 @@ handle_message(boost::asio::ip::udp::endpoint &sender,
       case BenchmarkState::RUNNING: std::cout << "RUNNING" << std::endl; break;
       case BenchmarkState::PAUSED: std::cout << "PAUSED" << std::endl; break;
       case BenchmarkState::FINISHED: std::cout << "FINISHED" << std::endl; break;
+      case BenchmarkState::STOPPED: std::cout << "STOPPED" << std::endl; break;
     }
 
     std::cout << "  Known teams: ";
@@ -258,6 +261,32 @@ handle_timer(const boost::system::error_code& error)
     bf.set_object_class_name("aluminium");
     bf.set_grasp_notification(true);
     peer_public_->send(bf);
+
+
+    // Send robot status report
+    RobotStatusReport report;
+    RobotStatus *status;
+    status = report.add_status();
+    status->set_capability(RobotStatus::TASK);
+    status->set_functionality("SchedulerComponent");
+    status->set_meta_data("Task execution active");
+    status = report.add_status();
+    status->set_capability(RobotStatus::NAVIGATION);
+    status->set_functionality("NavigationPlanner");
+    status->set_meta_data("Planning a path for the base");
+    peer_public_->send(report);
+
+
+    // Send if the robot is logging offline benchmarking data
+    LoggingStatus logging;
+    logging.set_is_logging(true);
+    peer_team_->send(logging);
+
+
+    // Accept an order
+    OrderAcceptance acceptance;
+    acceptance.add_id(1);
+    peer_team_->send(acceptance);
 
 
     timer_->expires_at(timer_->expires_at()
