@@ -31,6 +31,9 @@
 .settings
 .autotools
 
+# PyCharm project files, some are using it...
+.idea/
+
 # Vim files
 .*.swp
 .*.swo
