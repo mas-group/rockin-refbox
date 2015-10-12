@@ -30,19 +30,21 @@
  */
 
 /** Constructor. */
-ConveyorBeltThread::ConveyorBeltThread() :
+ConveyorBeltThread::ConveyorBeltThread(std::string mode) :
         Thread("ConveyorBeltThread", Thread::OPMODE_CONTINUOUS), zmq_context_(NULL), zmq_publisher_(NULL), zmq_subscriber_(NULL), cfg_timer_interval_(40), default_network_interface_("eth0")
 {
+    mode_ = mode;
+    last_status_mutex_ = new fawkes::Mutex();
+}
+
+/** Destructor */
+ConveyorBeltThread::~ConveyorBeltThread()
+{
+    delete last_status_mutex_;
 }
 
 void ConveyorBeltThread::init()
 {
-    std::string host_ip_address = "";
-    std::string host_command_port = "";
-    std::string host_status_port = "";
-
-    last_sent_command_timestamp_ = boost::posix_time::microsec_clock::local_time();
-
     try
     {
         cfg_timer_interval_ = config->get_uint("/llsfrb/clips/timer-interval");
@@ -51,9 +53,23 @@ void ConveyorBeltThread::init()
         // use default value
     }
 
-    try
+    last_sent_command_timestamp_ = boost::posix_time::microsec_clock::local_time();
+
+    if (mode_ == "mockup")
     {
-        if (config->get_bool("/llsfrb/conveyor-belt/enable"))
+        logger->log_info("ConveyorBelt", "Plugin is in mockup mode.");
+    } else if (mode_ == "simulation")
+    {
+        logger->log_info("ConveyorBelt", "Plugin is in simulation mode.");
+    } else if (mode_ == "real")
+    {
+        logger->log_info("ConveyorBelt", "Plugin is in real mode.");
+
+        std::string host_ip_address = "";
+        std::string host_command_port = "";
+        std::string host_status_port = "";
+
+        try
         {
             if (config->exists("/llsfrb/conveyor-belt/host") && config->exists("/llsfrb/conveyor-belt/command_port") && config->exists("/llsfrb/conveyor-belt/status_port"))
             {
@@ -77,18 +93,21 @@ void ConveyorBeltThread::init()
                 zmq_subscriber_->setsockopt(ZMQ_CONFLATE, &msg_limit, sizeof(msg_limit));
                 zmq_subscriber_->connect(host_status_port.c_str());
             }
+        } catch (std::exception &e)
+        {
+            logger->log_warn("ConveyorBelt", "Cannot create communication for the conveyor belt: %s", e.what());
+            logger->log_warn("ConveyorBelt", "Falling back to mockup mode, check configuration.");
+
+            delete zmq_context_;
+            delete zmq_publisher_;
+            delete zmq_subscriber_;
+
+            zmq_context_ = NULL;
+            zmq_publisher_ = NULL;
+            zmq_subscriber_ = NULL;
+
+            mode_ = "mockup";
         }
-    } catch (std::exception &e)
-    {
-        logger->log_warn("ConveyorBelt", "Cannot create communication for the conveyor belt: %s", e.what());
-
-        delete zmq_context_;
-        delete zmq_publisher_;
-        delete zmq_subscriber_;
-
-        zmq_context_ = NULL;
-        zmq_publisher_ = NULL;
-        zmq_subscriber_ = NULL;
     }
 
     fawkes::MutexLocker lock(clips_mutex);
@@ -104,24 +123,42 @@ void ConveyorBeltThread::init()
 
 void ConveyorBeltThread::finalize()
 {
-    delete zmq_context_;
-    delete zmq_publisher_;
-    delete zmq_subscriber_;
+    if (mode_ == "real")
+    {
+        delete zmq_context_;
+        delete zmq_publisher_;
+        delete zmq_subscriber_;
 
-    zmq_context_ = NULL;
-    zmq_publisher_ = NULL;
-    zmq_subscriber_ = NULL;
+        zmq_context_ = NULL;
+        zmq_publisher_ = NULL;
+        zmq_subscriber_ = NULL;
+    }
 }
 
 void ConveyorBeltThread::loop()
 {
-    receiveAndBufferStatusMsg();
+    if (mode_ == "real")
+    {
+        receiveAndBufferStatusMsg();
+    } else if (mode_ == "simulation")
+    {
+        fawkes::MutexLocker lock(last_status_mutex_);
+
+        if (!last_status_msg_.has_mode())
+        {
+            last_status_msg_.set_mode(STOP);
+            last_status_msg_.set_is_device_connected(true);
+            logger->log_info("ConveyorBelt", "simulation initialized to stop");
+        }
+    }
 
     boost::this_thread::sleep(boost::posix_time::milliseconds(cfg_timer_interval_));
 }
 
 bool ConveyorBeltThread::clips_is_belt_running()
 {
+    fawkes::MutexLocker lock(last_status_mutex_);
+
     if (last_status_msg_.has_mode() && (last_status_msg_.mode() == START))
         return true;
     else
@@ -130,6 +167,8 @@ bool ConveyorBeltThread::clips_is_belt_running()
 
 bool ConveyorBeltThread::clips_is_device_connected()
 {
+    fawkes::MutexLocker lock(last_status_mutex_);
+
     if (last_status_msg_.has_is_device_connected() && last_status_msg_.is_device_connected())
         return true;
     else
@@ -149,16 +188,22 @@ void ConveyorBeltThread::clips_stop_belt()
 void ConveyorBeltThread::setConveyorBeltRunMode(RunMode mode)
 {
     boost::posix_time::time_duration time_diff;
-    ConveyorBeltCommand command_msg;
-    std::string serialized_string;
-
-    if (!zmq_publisher_)
-        return;
 
     // prevent sending to many messages to the device
     time_diff = boost::posix_time::microsec_clock::local_time() - last_sent_command_timestamp_;
     if (time_diff.total_milliseconds() < 1000)
         return;
+
+    if (mode_ == "simulation" || mode_ == "mockup")
+    {
+        fawkes::MutexLocker lock(last_status_mutex_);
+
+        last_status_msg_.set_mode(mode);
+        return;
+    }
+
+    ConveyorBeltCommand command_msg;
+    std::string serialized_string;
 
     command_msg.set_mode(mode);
 
@@ -187,13 +232,10 @@ void ConveyorBeltThread::setConveyorBeltRunMode(RunMode mode)
 
 void ConveyorBeltThread::receiveAndBufferStatusMsg()
 {
-    if (!zmq_subscriber_)
-        return;
-
-    fawkes::MutexLocker lock(clips_mutex);
-
     if (zmq_subscriber_->recv(&zmq_message_, ZMQ_NOBLOCK))
     {
+        fawkes::MutexLocker lock(last_status_mutex_);
+
         last_status_msg_.ParseFromArray(zmq_message_.data(), zmq_message_.size());
 
         // remember time of last received msg
@@ -204,6 +246,8 @@ void ConveyorBeltThread::receiveAndBufferStatusMsg()
 
         if (time_diff.total_seconds() >= 3)
         {
+            fawkes::MutexLocker lock(last_status_mutex_);
+
             last_status_msg_.set_mode(STOP);
             last_status_msg_.set_is_device_connected(false);
         }

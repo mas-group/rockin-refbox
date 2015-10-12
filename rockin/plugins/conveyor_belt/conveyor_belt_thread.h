@@ -32,7 +32,8 @@
 class ConveyorBeltThread: public fawkes::Thread, public fawkes::LoggingAspect, public fawkes::ConfigurableAspect, public fawkes::CLIPSAspect
 {
     public:
-        ConveyorBeltThread();
+        ConveyorBeltThread(std::string mode);
+        ~ConveyorBeltThread();
 
         virtual void init();
         virtual void loop();
@@ -48,11 +49,15 @@ class ConveyorBeltThread: public fawkes::Thread, public fawkes::LoggingAspect, p
         void receiveAndBufferStatusMsg();
 
     private:
+        std::string mode_;
+
         zmq::context_t *zmq_context_;
         zmq::socket_t *zmq_publisher_;
         zmq::socket_t *zmq_subscriber_;
 
         unsigned int cfg_timer_interval_;
+
+        fawkes::Mutex *last_status_mutex_;
 
         ConveyorBeltStatus last_status_msg_;
         zmq::message_t zmq_message_;

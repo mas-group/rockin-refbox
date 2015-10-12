@@ -30,19 +30,22 @@
  */
 
 /** Constructor. */
-DrillingMachineThread::DrillingMachineThread() :
+DrillingMachineThread::DrillingMachineThread(std::string mode, int encoder_max) :
         Thread("DrillingMachineThread", Thread::OPMODE_CONTINUOUS), zmq_context_(NULL), zmq_publisher_(NULL), zmq_subscriber_(NULL), cfg_timer_interval_(40), default_network_interface_("eth0")
 {
+    mode_ = mode;
+    encoder_max_ = encoder_max;
+    drill_machine_mutex_ = new fawkes::Mutex();
+}
+
+/** Destructor. */
+DrillingMachineThread::~DrillingMachineThread()
+{
+    delete drill_machine_mutex_;
 }
 
 void DrillingMachineThread::init()
 {
-    std::string host_ip_address = "";
-    std::string host_command_port = "";
-    std::string host_status_port = "";
-
-    last_sent_command_timestamp_ = boost::posix_time::microsec_clock::local_time();
-
     try
     {
         cfg_timer_interval_ = config->get_uint("/llsfrb/clips/timer-interval");
@@ -51,11 +54,38 @@ void DrillingMachineThread::init()
         // use default value
     }
 
-    try
+    last_sent_command_timestamp_ = boost::posix_time::microsec_clock::local_time();
+
+    if (mode_ == "mockup")
     {
-        if (config->get_bool("/llsfrb/drilling-machine/enable"))
+        logger->log_info("DrillingMachine", "Plugin is in mockup mode.");
+    } else if (mode_ == "simulation")
+    {
+        logger->log_info("DrillingMachine", "Plugin is in simulation mode.");
+
+        fawkes::MutexLocker lock(drill_machine_mutex_);
+        // First time
+        if (!last_status_msg_.has_state())
         {
-            if (config->exists("/llsfrb/drilling-machine/host") && config->exists("/llsfrb/drilling-machine/command_port") && config->exists("/llsfrb/drilling-machine/status_port"))
+            last_status_msg_.set_state(DrillingMachineStatus::AT_TOP);
+            last_status_msg_.set_is_device_connected(true);
+            tick_ = encoder_max_;
+            last_command_msg_.set_command(DrillingMachineCommand::MOVE_UP);
+            logger->log_info("DrillingMachine", "simulation initialized to AT_TOP");
+        }
+
+    } else if (mode_ =="real")
+    {
+        logger->log_info("DrillingMachine", "Plugin is in real mode.");
+        std::string host_ip_address = "";
+        std::string host_command_port = "";
+        std::string host_status_port = "";
+
+        try
+        {
+            if (config->exists("/llsfrb/drilling-machine/host")
+                && config->exists("/llsfrb/drilling-machine/command_port")
+                && config->exists("/llsfrb/drilling-machine/status_port"))
             {
                 host_ip_address = config->get_string("/llsfrb/drilling-machine/host");
                 host_command_port = "epgm://" + default_network_interface_ + ":" + boost::lexical_cast<std::string>(config->get_uint("/llsfrb/drilling-machine/command_port"));
@@ -78,18 +108,21 @@ void DrillingMachineThread::init()
                 zmq_subscriber_->setsockopt(ZMQ_CONFLATE, &msg_limit, sizeof(msg_limit));
                 zmq_subscriber_->connect(host_status_port.c_str());
             }
+        } catch (fawkes::Exception &e)
+        {
+            logger->log_warn("DrillingMachine", "Cannot create communication for the drilling machine: %s", e.what());
+            logger->log_warn("DrillingMachine", "Falling back to mockup mode, check Configuration.");
+
+            delete zmq_context_;
+            delete zmq_publisher_;
+            delete zmq_subscriber_;
+
+            zmq_context_ = NULL;
+            zmq_publisher_ = NULL;
+            zmq_subscriber_ = NULL;
+
+            mode_ = "mockup";
         }
-    } catch (fawkes::Exception &e)
-    {
-        logger->log_warn("DrillingMachine", "Cannot create communication for the drilling machine: %s", e.what());
-
-        delete zmq_context_;
-        delete zmq_publisher_;
-        delete zmq_subscriber_;
-
-        zmq_context_ = NULL;
-        zmq_publisher_ = NULL;
-        zmq_subscriber_ = NULL;
     }
 
     fawkes::MutexLocker lock(clips_mutex);
@@ -105,18 +138,48 @@ void DrillingMachineThread::init()
 
 void DrillingMachineThread::finalize()
 {
-    delete zmq_context_;
-    delete zmq_publisher_;
-    delete zmq_subscriber_;
+    if (mode_ == "real")
+    {
+        delete zmq_context_;
+        delete zmq_publisher_;
+        delete zmq_subscriber_;
 
-    zmq_context_ = NULL;
-    zmq_publisher_ = NULL;
-    zmq_subscriber_ = NULL;
+        zmq_context_ = NULL;
+        zmq_publisher_ = NULL;
+        zmq_subscriber_ = NULL;
+    }
 }
 
 void DrillingMachineThread::loop()
 {
-    receiveAndBufferStatusMsg();
+    if (mode_ == "real")
+    {
+      receiveAndBufferStatusMsg();
+    } else if (mode_ == "simulation")
+    {
+        if (last_command_msg_.command() == DrillingMachineCommand::MOVE_DOWN)
+        {
+            if (tick_ > 1)
+            {
+                last_status_msg_.set_state(DrillingMachineStatus::MOVING_DOWN);
+                tick_ -= 1;
+            } else
+            {
+                last_status_msg_.set_state(DrillingMachineStatus::AT_BOTTOM);
+            }
+        } else if (last_command_msg_.command() == DrillingMachineCommand::MOVE_UP)
+        {
+            if (tick_ < encoder_max_)
+            {
+                last_status_msg_.set_state(DrillingMachineStatus::MOVING_UP);
+                tick_ += 1;
+            } else
+            {
+                last_status_msg_.set_state(DrillingMachineStatus::AT_TOP);
+            }
+        }
+        logger->log_info("DrillingMachine", "tick is %d", tick_);
+    }
 
     boost::this_thread::sleep(boost::posix_time::milliseconds(cfg_timer_interval_));
 }
@@ -149,18 +212,30 @@ void DrillingMachineThread::clips_move_drill_down()
 void DrillingMachineThread::moveDrill(DrillingMachineCommand::Command drill_command)
 {
     boost::posix_time::time_duration time_diff;
-    DrillingMachineCommand command_msg;
-    std::string serialized_string;
-
-    if (!zmq_publisher_)
-        return;
 
     // prevent sending to many messages to the device
     time_diff = boost::posix_time::microsec_clock::local_time() - last_sent_command_timestamp_;
     if (time_diff.total_milliseconds() < 200)
         return;
 
+    // If mode is simulation, set up direction of movement.
+    if (mode_ == "simulation")
+    {
+        fawkes::MutexLocker lock(drill_machine_mutex_);
 
+        if ( !last_command_msg_.has_command()) {
+            /* Set if first time */
+            last_command_msg_.set_command(drill_command);
+        } else if (last_command_msg_.command() != drill_command)
+        {
+            /* Change if different command */
+            last_command_msg_.set_command(drill_command);
+        }
+        return;
+    }
+
+    DrillingMachineCommand command_msg;
+    std::string serialized_string;
     command_msg.set_command(drill_command);
 
     zmq::message_t *query = NULL;
@@ -186,11 +261,6 @@ void DrillingMachineThread::moveDrill(DrillingMachineCommand::Command drill_comm
 
 void DrillingMachineThread::receiveAndBufferStatusMsg()
 {
-    if (!zmq_subscriber_)
-        return;
-
-    fawkes::MutexLocker lock(clips_mutex);
-
     if (zmq_subscriber_->recv(&zmq_message_, ZMQ_NOBLOCK))
     {
         last_status_msg_.ParseFromArray(zmq_message_.data(), zmq_message_.size());

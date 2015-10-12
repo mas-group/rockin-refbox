@@ -32,7 +32,8 @@
 class DrillingMachineThread: public fawkes::Thread, public fawkes::LoggingAspect, public fawkes::ConfigurableAspect, public fawkes::CLIPSAspect
 {
     public:
-        DrillingMachineThread();
+        DrillingMachineThread(std::string mode, int encoder_max);
+        ~DrillingMachineThread();
 
         virtual void init();
         virtual void loop();
@@ -48,13 +49,20 @@ class DrillingMachineThread: public fawkes::Thread, public fawkes::LoggingAspect
         void receiveAndBufferStatusMsg();
 
     private:
+        std::string mode_;
+        // simulated encoder tick
+        int tick_;
+        int encoder_max_;
+
         zmq::context_t *zmq_context_;
         zmq::socket_t *zmq_publisher_;
         zmq::socket_t *zmq_subscriber_;
 
         unsigned int cfg_timer_interval_;
 
+        fawkes::Mutex *drill_machine_mutex_;
         DrillingMachineStatus last_status_msg_;
+        DrillingMachineCommand last_command_msg_;
         zmq::message_t zmq_message_;
 
         std::string default_network_interface_;

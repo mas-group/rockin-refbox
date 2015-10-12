@@ -36,8 +36,28 @@ class DrillingMachinePlugin: public fawkes::Plugin
         DrillingMachinePlugin(Configuration *config) :
                 Plugin(config)
         {
-            thread_list.push_back(new DrillingMachineThread());
-        }
+          std::string mode = "";
+          int encoder_max = 40;
+
+          if (config->exists("/llsfrb/drilling-machine/mode")) {
+              std::string config_mode = config->get_string("/llsfrb/drilling-machine/mode");
+              if (config_mode == std::string("real"))
+              {
+                  mode = "real";
+              } else if (config_mode == std::string("simulation"))
+              {
+                  mode = "simulation";
+              } else
+              {
+                  mode = "mockup";
+              }
+          } else
+          {
+              mode = "mockup";
+          }
+
+          thread_list.push_back(new DrillingMachineThread(mode, encoder_max));
+      }
 };
 
 PLUGIN_DESCRIPTION("Plugin to communicate with the drilling machine")

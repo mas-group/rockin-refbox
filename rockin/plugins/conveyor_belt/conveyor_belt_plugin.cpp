@@ -36,7 +36,25 @@ class ConveyorBeltPlugin: public fawkes::Plugin
         ConveyorBeltPlugin(Configuration *config) :
                 Plugin(config)
         {
-            thread_list.push_back(new ConveyorBeltThread());
+            std::string mode = "";
+            if (config->exists("/llsfrb/conveyor-belt/mode")) {
+                std::string config_mode = config->get_string("/llsfrb/conveyor-belt/mode");
+                if (config_mode == std::string("real"))
+                {
+                    mode = "real";
+                } else if (config_mode == std::string("simulation"))
+                {
+                    mode = "simulation";
+                } else
+                {
+                    mode = "mockup";
+                }
+            } else
+            {
+                mode = "mockup";
+            }
+
+            thread_list.push_back(new ConveyorBeltThread(mode));
         }
 };
 

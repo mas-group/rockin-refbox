@@ -12,17 +12,18 @@ llsfrb:
     game: game.log
 
   conveyor-belt:
-    enable: false
+    #mode: simulation, real, mockup
+    mode: simulation
     host: !ipv4 eth0
     command_port: !tcp-port 55502
     status_port: !tcp-port 55501
 
   drilling-machine:
-    enable: false
+    mode: simulation
     host: !ipv4 eth0
     command_port: !tcp-port 55512
     status_port: !tcp-port 55511
-    
+
   force-fitting-machine:
     enable: false
     host: !ipv4 eth0
@@ -51,9 +52,9 @@ llsfrb:
 
     public-peer:
       host: !ipv4 192.168.1.255
-      port: !udp-port 4444
-      #send-port: !udp-port 4444
-      #recv-port: !udp-port 4445
+      #port: !udp-port 4444
+      send-port: !udp-port 4444
+      recv-port: !udp-port 4445
 
     AugsburgDublin-peer:
       host: !ipv4 192.168.1.255
@@ -110,5 +111,5 @@ llsfrb:
       wits: randomkey
 
   shell:
-    refbox-host: !ipv4 192.168.1.100
+    refbox-host: !ipv4 localhost
     refbox-port: 4444
