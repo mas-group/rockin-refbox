@@ -28,8 +28,11 @@ Additionally, the following debian packages need to be installed:
 
     ./bin/llsf-refbox
     
-    
-    
+
+### To install the Python modules
+
+    python setup.py install
+
 
 ## FAQ
 
